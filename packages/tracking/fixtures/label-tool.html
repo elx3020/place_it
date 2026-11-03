@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>place_it label tool</title>
+<style>
+  body { font: 14px system-ui; margin: 16px; max-width: 960px }
+  #stage { position: relative; display: inline-block; line-height: 0; margin: 8px 0 }
+  video { max-width: 100%; max-height: 60vh; background: #000 }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair }
+  button, select, input { font: inherit; margin-right: 6px }
+  pre { background: #f4f4f4; padding: 8px; max-height: 180px; overflow: auto }
+</style>
+<h3>Label tool for <code>labels.json</code></h3>
+<p>Origin is the top-left of the raw frame (no mirroring). Pick the clips, scrub to a frame, choose a landmark, click it. Data stays in this page; use Export when done.</p>
+<p>
+  <label>Clips <input id="clips" type="file" accept="video/mp4" multiple></label>
+  <label>Existing labels.json <input id="imp" type="file" accept=".json"></label>
+</p>
+<p>
+  <select id="clip"></select>
+  <select id="lm">
+    <option value="face:152">face 152 chin</option>
+    <option value="face:234">face 234 left face edge</option>
+    <option value="face:454">face 454 right face edge</option>
+    <option value="pose:11">pose 11 left shoulder</option>
+    <option value="pose:12">pose 12 right shoulder</option>
+    <option value="pose:7">pose 7 left ear</option>
+    <option value="pose:8">pose 8 right ear</option>
+  </select>
+  <button id="prev">&larr; frame</button><button id="next">frame &rarr;</button>
+  <button id="del">Clear points at this time</button>
+  <span id="t"></span>
+</p>
+<div id="stage"><video id="v" muted playsinline controls></video><canvas id="c"></canvas></div>
+<p>Tolerance <input id="tol" type="number" step="0.005" value="0.03" style="width:70px"> <button id="exp">Export labels.json</button></p>
+<pre id="out"></pre>
+<script>
+const $ = (id) => document.getElementById(id);
+const v = $('v'), c = $('c'), ctx = c.getContext('2d');
+const files = {};      // clip name -> object URL
+let labels = {};       // clip name -> { timeMs -> { face:{}, pose:{} } }
+const FPS = 30;        // frame-step size only; labels store exact ms
+
+const clip = () => $('clip').value;
+const ms = () => Math.round(v.currentTime * 1000);
+const here = () => (labels[clip()] ??= {})[ms()];
+
+function draw() {
+  c.width = v.clientWidth; c.height = v.clientHeight;
+  $('t').textContent = `${ms()} ms`;
+  const f = here();
+  if (f) for (const kind of ['face', 'pose']) for (const [i, p] of Object.entries(f[kind] ?? {})) {
+    ctx.fillStyle = kind === 'face' ? '#0f0' : '#f0f';
+    ctx.beginPath(); ctx.arc(p.x * c.width, p.y * c.height, 5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(`${kind[0]}${i}`, p.x * c.width + 7, p.y * c.height);
+  }
+  $('out').textContent = JSON.stringify(build(), null, 1);
+}
+
+function build() {
+  const out = { tolerance: Number($('tol').value), clips: {} };
+  for (const [name, byTime] of Object.entries(labels)) {
+    const frames = Object.entries(byTime)
+      .filter(([, f]) => Object.keys(f.face ?? {}).length || Object.keys(f.pose ?? {}).length)
+      .sort((a, b) => a[0] - b[0])
+      .map(([t, f]) => ({ timeMs: Number(t), ...(Object.keys(f.face ?? {}).length && { face: f.face }), ...(Object.keys(f.pose ?? {}).length && { pose: f.pose }) }));
+    if (frames.length) out.clips[name] = { frames };
+  }
+  return out;
+}
+
+c.addEventListener('click', (e) => {
+  const r = c.getBoundingClientRect();
+  const [kind, idx] = $('lm').value.split(':');
+  const f = ((labels[clip()] ??= {})[ms()] ??= { face: {}, pose: {} });
+  f[kind][idx] = { x: +((e.clientX - r.left) / r.width).toFixed(4), y: +((e.clientY - r.top) / r.height).toFixed(4) };
+  draw();
+});
+$('del').onclick = () => { delete (labels[clip()] ?? {})[ms()]; draw(); };
+const step = (d) => { v.pause(); v.currentTime = Math.max(0, v.currentTime + d / FPS); };
+$('prev').onclick = () => step(-1);
+$('next').onclick = () => step(1);
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+});
+for (const ev of ['seeked', 'loadeddata', 'timeupdate', 'resize']) (ev === 'resize' ? window : v).addEventListener(ev, draw);
+
+$('clips').onchange = (e) => {
+  for (const f of e.target.files) files[f.name] = URL.createObjectURL(f);
+  $('clip').innerHTML = Object.keys(files).map((n) => `<option>${n}</option>`).join('');
+  $('clip').onchange();
+};
+$('clip').onchange = () => { v.src = files[clip()]; };
+$('imp').onchange = async (e) => {
+  const j = JSON.parse(await e.target.files[0].text());
+  $('tol').value = j.tolerance ?? 0.03;
+  for (const [name, { frames }] of Object.entries(j.clips ?? {}))
+    for (const fr of frames) (labels[name] ??= {})[fr.timeMs] = { face: fr.face ?? {}, pose: fr.pose ?? {} };
+  draw();
+};
+$('exp').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(build(), null, 2)], { type: 'application/json' }));
+  a.download = 'labels.json'; a.click();
+};
+</script>

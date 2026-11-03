@@ -20,6 +20,8 @@ Clips live here (stored in Git LFS, see `.gitattributes`). Until they exist, `te
 
 ## labels.json
 
+Create it with `label-tool.html` in this folder: open the file in a browser (no server needed), load the clips, click landmarks on chosen frames, then Export and save the result here as `labels.json`.
+
 ```json
 {
   "tolerance": 0.03,
