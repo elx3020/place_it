@@ -1,5 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import type { BodyDesc, BodyId, PhysicsWorld, Vec3 } from "@place-it/core";
+import { PlaceItError, type BodyDesc, type BodyId, type PhysicsWorld, type Vec3 } from "@place-it/core";
+import { assertBodyDesc } from "./validate";
 
 const STEP = 1 / 60;
 const MAX_DT_MS = 100;
@@ -13,7 +14,8 @@ export class RapierWorld implements PhysicsWorld {
   private readonly gravity: Vec3;
 
   constructor(opts: { gravity?: Vec3 } = {}) {
-    this.gravity = opts.gravity ?? [0, -9.81, 0];
+    const g = opts.gravity;
+    this.gravity = g && g.every(Number.isFinite) ? g : [0, -9.81, 0];
   }
 
   async init(): Promise<void> {
@@ -25,7 +27,8 @@ export class RapierWorld implements PhysicsWorld {
 
   addBody(desc: BodyDesc): BodyId {
     const w = this.world;
-    if (!w) throw new Error("RapierWorld: call init() first");
+    if (!w) throw new PlaceItError("physics-failed", "RapierWorld: call init() first");
+    assertBodyDesc(desc);
     const [x, y, z] = desc.position;
     const bd = desc.kind === "dynamic" ? RAPIER.RigidBodyDesc.dynamic() : RAPIER.RigidBodyDesc.kinematicPositionBased();
     const body = w.createRigidBody(bd.setTranslation(x, y, z));

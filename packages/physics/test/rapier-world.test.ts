@@ -70,3 +70,30 @@ describe("RapierWorld", () => {
     expect(() => w.dispose()).not.toThrow();
   });
 });
+
+describe("input validation", () => {
+  it("addBody rejects non-finite or non-positive input with physics-failed", async () => {
+    const w = await make();
+    for (const d of [
+      { position: [NaN, 0, 0], radius: 1 },
+      { position: [0, Infinity, 0], radius: 1 },
+      { position: [0, 0, 0], radius: NaN },
+      { position: [0, 0, 0], radius: 0 },
+      { position: [0, 0, 0], radius: -1 },
+    ] as const)
+      expect(() => w.addBody({ kind: "dynamic", position: [...d.position], radius: d.radius })).toThrowError(
+        expect.objectContaining({ code: "physics-failed" }),
+      );
+    w.dispose();
+  });
+
+  it("non-finite gravity components fall back to the default", async () => {
+    const w = await make([NaN, 0, 0]);
+    const id = w.addBody({ kind: "dynamic", position: [0, 5, 0], radius: 0.1 });
+    for (let i = 0; i < 30; i++) w.step(DT);
+    const p = w.readPositions().get(id)!;
+    expect(p.every(Number.isFinite)).toBe(true);
+    expect(p[1]).toBeLessThan(5);
+    w.dispose();
+  });
+});

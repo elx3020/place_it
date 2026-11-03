@@ -1,11 +1,14 @@
 import { PlaceItError, type BodyDesc, type BodyId, type PhysicsWorld, type Vec3 } from "@place-it/core";
 import { createWorker } from "@place-it/platform-web";
+import { assertBodyDesc } from "./validate";
 import type { FromWorker, ToWorker } from "./protocol";
 
 export interface WorkerPhysicsOptions {
   /** URL of the built `worker.js` (see README). */
   workerUrl: string;
   gravity?: Vec3;
+  /** Called for worker errors after init has settled (and for load errors). */
+  onError?: (e: PlaceItError) => void;
 }
 
 export class WorkerPhysics implements PhysicsWorld {
@@ -13,6 +16,11 @@ export class WorkerPhysics implements PhysicsWorld {
   private nextId = 0;
   private latest = new Map<BodyId, Vec3>();
   private fail?: (e: PlaceItError) => void;
+  private _lastError?: PlaceItError;
+
+  get lastError(): PlaceItError | undefined {
+    return this._lastError;
+  }
 
   constructor(private o: WorkerPhysicsOptions) {}
 
@@ -21,7 +29,12 @@ export class WorkerPhysics implements PhysicsWorld {
       if (this.worker) return reject(new PlaceItError("physics-failed", "WorkerPhysics already initialised"));
       const w = (this.worker = createWorker(this.o.workerUrl));
       this.fail = reject;
-      const err = (msg: string) => reject(new PlaceItError("physics-failed", msg));
+      const err = (msg: string) => {
+        const e = new PlaceItError("physics-failed", msg);
+        this._lastError = e;
+        reject(e); // no-op once init has settled
+        this.o.onError?.(e);
+      };
       w.onerror = (e) => err(e.message || "physics worker failed to load");
       w.onmessageerror = () => err("physics worker message could not be deserialised");
       w.onmessage = (e: MessageEvent<FromWorker>) => {
@@ -39,6 +52,7 @@ export class WorkerPhysics implements PhysicsWorld {
   }
 
   addBody(desc: BodyDesc): BodyId {
+    assertBodyDesc(desc);
     const id = this.nextId++;
     this.send({ t: "add", id, desc });
     this.latest.set(id, [...desc.position]);

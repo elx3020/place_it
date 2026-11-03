@@ -1,6 +1,6 @@
 # @place-it/physics
 
-`RapierWorld` runs Rapier directly (Node, tests, inside the worker). `WorkerPhysics` is the main-thread `PhysicsWorld` proxy that talks to `dist/worker.js` (self-contained: Rapier and its base64 WASM are bundled, so there is no separate `.wasm` fetch).
+`RapierWorld` (import from `@place-it/physics/rapier`, kept out of the main entry because it pulls the WASM) runs Rapier directly (Node, tests, inside the worker). `WorkerPhysics` is the main-thread `PhysicsWorld` proxy that talks to `dist/worker.js` (self-contained: Rapier and its base64 WASM are bundled, so there is no separate `.wasm` fetch).
 
 ```ts
 import { WorkerPhysics } from "@place-it/physics";
