@@ -43,6 +43,7 @@ physics:
   - 'package.json'
   - 'tsconfig*.json'
 place-it:
+  - 'packages/place-it/**'
   - 'packages/**'
   - 'apps/demo-tryon/**'
   - '.github/**'

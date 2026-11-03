@@ -119,4 +119,13 @@ describe("placement", () => {
     const degenerateMatrix = new Array<number>(16).fill(0);
     expect(computePlacements(ear(), frame([ok], { faceMatrices: [degenerateMatrix] }))).toEqual([HIDDEN]);
   });
+
+  it("(e) two people: the ear uses the body whose nose is nearest this face, not poses[0]", () => {
+    const f = face({ 234: lm(0.4, 0.5), 454: lm(0.6, 0.5), 1: lm(0.5, 0.5) });
+    const far = body({ 0: lm(0.9, 0.2), 8: lm(0.95, 0.2) });
+    const mine = body({ 0: lm(0.5, 0.52), 8: lm(0.4, 0.5) });
+    const [p] = computePlacements(ear(), frame([f], { poses: [far, mine], pose: far }));
+    expect(p!.position[0]).toBeCloseTo(0.4); // pulled toward `mine`'s ear, which equals the face point
+    expect(p!.position[1]).toBeCloseTo(0.5);
+  });
 });

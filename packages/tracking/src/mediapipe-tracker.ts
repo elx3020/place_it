@@ -24,31 +24,42 @@ export class MediaPipeTracker implements Tracker {
   private face?: FaceLandmarker;
   private pose?: PoseLandmarker;
   private ready = false;
+  private generation = 0; // bumped by dispose(), so an init() that was overtaken cleans up after itself
 
   constructor(private readonly opts: MediaPipeTrackerOptions = {}) {}
 
   async init(needs: TrackerNeed[]): Promise<void> {
     this.dispose();
+    const gen = this.generation;
+    let face: FaceLandmarker | undefined, pose: PoseLandmarker | undefined;
     const models = { ...DEFAULT_MODEL_URLS, ...this.opts.modelUrls };
     try {
       const wasm = await FilesetResolver.forVisionTasks(this.opts.baseUrl ?? DEFAULT_WASM_URL);
       if (needs.includes("face"))
-        this.face = await FaceLandmarker.createFromOptions(wasm, {
+        face = await FaceLandmarker.createFromOptions(wasm, {
           baseOptions: { modelAssetPath: models.face },
           runningMode: "VIDEO",
           numFaces: this.opts.maxFaces ?? 4,
           outputFacialTransformationMatrixes: true,
         });
       if (needs.includes("pose"))
-        this.pose = await PoseLandmarker.createFromOptions(wasm, {
+        pose = await PoseLandmarker.createFromOptions(wasm, {
           baseOptions: { modelAssetPath: models.pose },
           runningMode: "VIDEO",
-          numPoses: 1,
+          numPoses: this.opts.maxFaces ?? 4,
         });
     } catch (e) {
-      this.dispose();
+      face?.close();
+      pose?.close();
+      if (gen !== this.generation) return; // disposed meanwhile: not an error
       throw fail("MediaPipe initialisation failed", e);
     }
+    if (gen !== this.generation) {
+      face?.close();
+      pose?.close();
+      return;
+    }
+    [this.face, this.pose] = [face, pose];
     this.ready = true;
   }
 
@@ -58,13 +69,13 @@ export class MediaPipeTracker implements Tracker {
     try {
       const f = this.face?.detectForVideo(image, input.timestampMs);
       const p = this.pose?.detectForVideo(image, input.timestampMs);
-      const pose = p?.landmarks[0];
+      const poses = p?.landmarks.map((l) => l.map(xyz));
       return {
         timestampMs: input.timestampMs,
         imageSize: { width: input.width, height: input.height },
         faces: (f?.faceLandmarks ?? []).map((l) => l.map(xyz)),
         faceMatrices: (f?.facialTransformationMatrixes ?? []).map((m) => (m ? Array.from(m.data) : undefined)),
-        ...(pose && { pose: pose.map(xyz) }),
+        ...(poses?.[0] && { pose: poses[0], poses }),
       };
     } catch (e) {
       throw fail("MediaPipe detection failed", e);
@@ -72,6 +83,7 @@ export class MediaPipeTracker implements Tracker {
   }
 
   dispose(): void {
+    this.generation++;
     this.ready = false;
     this.face?.close();
     this.pose?.close();

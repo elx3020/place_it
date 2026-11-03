@@ -12,7 +12,7 @@ for (const l of readFileSync(".github/path-filters.yml", "utf8").split("\n")) {
 const errors = [];
 const dirs = ["packages", "apps"].flatMap((p) => readdirSync(p, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => `${p}/${d.name}`));
 for (const d of dirs) {
-  const own = Object.values(filters).some((g) => g.includes(`${d}/**`) || g.includes(`${d.split("/")[0]}/**`));
+  const own = Object.values(filters).some((g) => g.includes(`${d}/**`) || (d.startsWith("apps/") && g.includes("apps/**")));
   if (!own) errors.push(`no path filter covers ${d}`);
   if (d.startsWith("packages/") && !filters[d.slice(9)]) errors.push(`no filter entry named ${d.slice(9)}`);
 }

@@ -46,6 +46,7 @@ export function createPlaceIt(o: PlaceItOptions): PlaceItSession {
   const physics = o.physics
     ? lazy<PhysicsWorld>(async () => new (await load.physics()).WorkerPhysics({
         workerUrl: o.workerUrl ?? (o.baseUrl ? resolveAssetUrl("physics-worker.js", o.baseUrl) : workerUrl()),
+        onError: (e) => session.reportError(e),
       }))
     : undefined;
   const session = new PlaceItSession({ input: camera, tracker, renderer, physics, scheduler: createScheduler() });

@@ -4,7 +4,8 @@
 
 ```ts
 import { WorkerPhysics } from "@place-it/physics";
-const physics = new WorkerPhysics({ workerUrl: new URL("@place-it/physics/worker", import.meta.url).href });
+import workerUrl from "@place-it/physics/worker?url"; // Vite; other bundlers: any URL to dist/worker.js
+const physics = new WorkerPhysics({ workerUrl });
 await physics.init(); // rejects with PlaceItError "physics-failed" if the worker fails
 ```
 

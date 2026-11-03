@@ -27,7 +27,7 @@ General-purpose library that places 3D objects (GLB) on tracked targets from web
 - Tracking, render and physics **never import each other**; they talk through core interfaces. Area packages may depend on `core` and `platform-web` only.
 - No browser APIs in `core`. iOS Safari is mandatory, so keep WebKit working.
 - Placement: `Pose.position` is normalized image coordinates; `Pose.scale` is a ratio (apparent width / reference width: 0.14 m face, 0.38 m shoulders), not meters.
-- Config is JSON `{version: 1, target: 'ear'|'neck', anchor, scale?, mirror?}`; `anchor` is stored but not applied yet.
+- Config is JSON `{version: 1, target: 'ear'|'neck', anchor, scale?, mirror?}`; `anchor` is a point in model space (meters) that is placed on the tracked landmark.
 - Models: glTF conventions (meters, Y-up, +Z front).
 - Video never leaves the device. Default MediaPipe model URLs are Google storage (no video sent); assets default to jsDelivr `place-it@<version>/assets/`.
 - TypeScript is pinned to ^6 (tsup's dts build needs the compiler API missing in TS 7).
@@ -45,4 +45,4 @@ General-purpose library that places 3D objects (GLB) on tracked targets from web
 
 ## Open caveats
 
-WebGPU path and WebKit never ran locally; physics worker errors after init don't reach the session `error` event; deferred review minors are in `.superpowers/sdd/2026-11-03-place-it-scaffold/progress.md` (git-ignored).
+WebGPU path and WebKit never ran locally; the anchor offset, the cross-origin worker shim and the multi-person pose pick have unit tests only (no browser run); deferred review minors are in `.superpowers/sdd/2026-11-03-place-it-scaffold/progress.md` (git-ignored).

@@ -90,6 +90,10 @@ export class ThreeRenderer implements Renderer {
     } catch (e) {
       throw new PlaceItError("model-invalid", `cannot load model ${url}: ${(e as Error)?.message ?? e}`);
     }
+    if (this.disposed) { // dispose() ran while the file was loading
+      disposeTree(root);
+      return "";
+    }
     const size = new Box3().setFromObject(root).getSize(new Vector3());
     const diagonal = size.length();
     if (!(diagonal > 0) || !Number.isFinite(diagonal)) {
@@ -120,7 +124,12 @@ export class ThreeRenderer implements Renderer {
     for (const { group } of this.instances.values()) group.visible = false;
     const ctxObjects = objects.map((o) => {
       const model = this.models.get(o.id) ?? this.lastModel;
-      if (model) this.place(this.instance(o.id, model), o.pose, o.mirrored);
+      if (model) {
+        const group = this.instance(o.id, model);
+        // the clone sits at -anchor (model.root.scale undoes the size clamp), so the anchor lands on the group origin
+        group.children[0]!.position.set(...(o.anchor ?? [0, 0, 0])).multiplyScalar(-model.root.scale.x);
+        this.place(group, o.pose, o.mirrored);
+      }
       return { id: o.id, pose: o.pose, bounds: model?.bounds ?? ([0, 0, 0] as Vec3), material: model?.material ?? "" };
     });
     this.place(this.occluder, this.occluderPose);

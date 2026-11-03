@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createScheduler, createWorker, resolveAssetUrl } from "../src";
 
 describe("resolveAssetUrl", () => {
@@ -14,11 +14,29 @@ describe("resolveAssetUrl", () => {
 });
 
 describe("createWorker", () => {
-  it("constructs a module Worker from the url", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const stub = () => {
     const W = vi.fn();
     vi.stubGlobal("Worker", W);
-    createWorker("https://x.test/w.js");
-    expect(W).toHaveBeenCalledWith("https://x.test/w.js", { type: "module" });
+    vi.stubGlobal("document", { baseURI: "https://shop.test/page" });
+    vi.stubGlobal("location", { origin: "https://shop.test" });
+    return W;
+  };
+
+  it("same origin: a module Worker straight from the url", () => {
+    const W = stub();
+    createWorker("https://shop.test/w.js");
+    expect(String(W.mock.calls[0]![0])).toBe("https://shop.test/w.js");
+    expect(W.mock.calls[0]![1]).toEqual({ type: "module" });
+  });
+
+  it("cross origin: a same-origin blob that imports the script", async () => {
+    const W = stub();
+    let blob: Blob | undefined;
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: (b: Blob) => ((blob = b), "blob:x") }));
+    createWorker("https://cdn.test/w.js");
+    expect(W).toHaveBeenCalledWith("blob:x", { type: "module" });
+    expect(await blob!.text()).toBe('import "https://cdn.test/w.js";');
   });
 });
 

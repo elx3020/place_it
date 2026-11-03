@@ -108,6 +108,6 @@ it("stop() while an engine module is loading disposes it on arrival and never in
   const s = createPlaceIt({ canvas, target: "ear" });
   const loading = s.load("m.glb", cfg);
   s.stop();
-  await expect(loading).rejects.toThrow();
+  await expect(loading).resolves.toBeUndefined(); // stopped: load ends quietly
   expect(h.made.renderer).toMatchObject({ disposed: true, inits: 0 });
 });

@@ -22,12 +22,12 @@ async function handle(m: ToWorker): Promise<void> {
   } else if (m.t === "step") {
     world.step(m.dtMs);
     const pos = world.readPositions();
-    const data = new Float64Array(ids.size * 4);
-    let i = 0;
-    for (const [mainId, w] of ids) {
-      const p = pos.get(w);
-      if (p) data.set([mainId, ...p], i++ * 4);
-    }
+    const data = Float64Array.from(
+      [...ids].flatMap(([mainId, w]) => {
+        const p = pos.get(w);
+        return p ? [mainId, ...p] : []; // only bodies that exist, so no slot reads as body 0
+      }),
+    );
     post({ t: "positions", data }, [data.buffer]);
   } else {
     world.dispose();

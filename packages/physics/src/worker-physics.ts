@@ -27,7 +27,12 @@ export class WorkerPhysics implements PhysicsWorld {
   init(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (this.worker) return reject(new PlaceItError("physics-failed", "WorkerPhysics already initialised"));
-      const w = (this.worker = createWorker(this.o.workerUrl));
+      let w: Worker;
+      try {
+        w = this.worker = createWorker(this.o.workerUrl);
+      } catch (e) {
+        return reject(new PlaceItError("physics-failed", `cannot start physics worker: ${(e as Error)?.message ?? e}`));
+      }
       this.fail = reject;
       const err = (msg: string) => {
         const e = new PlaceItError("physics-failed", msg);

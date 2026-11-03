@@ -44,6 +44,17 @@ function largestFace(frame: TrackingFrame): number {
   return best;
 }
 
+/** The body belonging to `face`: the pose whose nose (pose 0) is nearest the face's nose tip (mesh 1); the first pose when that can't be measured. */
+function poseFor(frame: TrackingFrame, face: Landmark[] | undefined): Landmark[] | undefined {
+  const all = frame.poses ?? (frame.pose ? [frame.pose] : []);
+  let best = all[0], bestD = Infinity;
+  for (const p of all) {
+    const d = width(frame, p[0], face?.[1]);
+    if (d < bestD) { best = p; bestD = d; }
+  }
+  return best;
+}
+
 /** Rotation of a 4x4 column-major transform as [x, y, z, w]; columns are normalised to drop any scale. */
 function headRotation(m: number[] | undefined): Quat {
   if (!m) return [0, 0, 0, 1];
@@ -73,17 +84,19 @@ function headRotation(m: number[] | undefined): Quat {
 const ear: TargetPlacer = ({ mirror, scale = 1 }, frame) => {
   const i = largestFace(frame);
   const face = frame.faces[i];
+  const body = poseFor(frame, face);
   const s = (scale * width(frame, face?.[FACE_A], face?.[FACE_B])) / REFERENCE_FACE_WIDTH_M;
   const sides: [number, number][] = mirror ? [[FACE_A, POSE_EAR_R], [FACE_B, POSE_EAR_L]] : [[FACE_A, POSE_EAR_R]];
   return sides.map(([f, p]) => {
     const point = face?.[f];
-    return place(toward(point, frame.pose?.[p] ?? point, EAR_POSE_WEIGHT), headRotation(frame.faceMatrices[i]), s);
+    return place(toward(point, body?.[p] ?? point, EAR_POSE_WEIGHT), headRotation(frame.faceMatrices[i]), s);
   });
 };
 
 const neck: TargetPlacer = ({ scale = 1 }, frame) => {
   const i = largestFace(frame);
-  const l = frame.pose?.[SHOULDER_L], r = frame.pose?.[SHOULDER_R];
+  const body = poseFor(frame, frame.faces[i]);
+  const l = body?.[SHOULDER_L], r = body?.[SHOULDER_R];
   const mid = l && r ? { x: (l.x + r.x) / 2, y: (l.y + r.y) / 2, z: 0 } : undefined;
   const s = (scale * width(frame, l, r)) / REFERENCE_SHOULDER_WIDTH_M;
   return [place(toward(frame.faces[i]?.[CHIN], mid, NECK_CHIN_TO_SHOULDER), headRotation(frame.faceMatrices[i]), s)];

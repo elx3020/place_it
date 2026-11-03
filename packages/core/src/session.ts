@@ -29,10 +29,14 @@ export class PlaceItSession {
   /** start() may run before this resolves: the loop draws nothing until every part is ready. */
   async load(modelUrl: string, config: PlacementConfig): Promise<void> {
     await this.o.renderer.init();
+    if (this.stopped) return;
     await this.o.renderer.loadModel(modelUrl);
+    if (this.stopped) return;
     await this.o.physics?.init();
+    if (this.stopped) return;
     // both targets use the face mesh plus pose landmarks
     await this.o.tracker.init(["face", "pose"]);
+    if (this.stopped) return;
     this.config = config;
   }
 
@@ -68,8 +72,15 @@ export class PlaceItSession {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), cb]);
   }
 
+  /** For parts that fail on their own thread, such as physics: reports through the `error` event. */
+  reportError(e: PlaceItError): void {
+    if (!this.stopped) this.emit("error", e);
+  }
+
   private emit(event: string, e = undefined as unknown as PlaceItError) {
-    for (const cb of this.listeners.get(event) ?? []) cb(e);
+    for (const cb of this.listeners.get(event) ?? []) {
+      try { cb(e); } catch { /* shortcut: a throwing listener is dropped so it cannot stop tracking; surface it if hosts ask */ }
+    }
   }
 
   private schedule() {
@@ -78,6 +89,7 @@ export class PlaceItSession {
 
   private async tick(now: number) {
     if (!this.running) return;
+    const events: ("tracking-lost" | "tracking-found")[] = [];
     try {
       const frame = this.o.scheduler.isHidden() ? undefined : this.o.input.grab();
       if (frame && this.config) {
@@ -85,11 +97,11 @@ export class PlaceItSession {
         if (!this.running) return;
         const poses = this.applyPhysics(computePlacements(this.config, tracked), now);
         const visible = poses.some((p) => p.visible);
-        if (this.wasVisible && !visible) { this.lost = true; this.emit("tracking-lost"); }
-        else if (visible && this.lost) { this.lost = false; this.emit("tracking-found"); }
+        if (this.wasVisible && !visible) { this.lost = true; events.push("tracking-lost"); }
+        else if (visible && this.lost) { this.lost = false; events.push("tracking-found"); }
         this.wasVisible = visible;
         const objects: RenderObject[] = poses.map((pose, i) => ({
-          id: `${this.config!.target}-${i}`, pose, mirrored: i === 1,
+          id: `${this.config!.target}-${i}`, pose, mirrored: i === 1, anchor: this.config!.anchor,
         }));
         this.o.renderer.render(frame, objects);
       }
@@ -99,6 +111,7 @@ export class PlaceItSession {
       this.emit("error", e instanceof PlaceItError ? e : new PlaceItError("tracker-failed", String((e as Error)?.message ?? e)));
       return;
     }
+    for (const ev of events) this.emit(ev);
     this.schedule();
   }
 

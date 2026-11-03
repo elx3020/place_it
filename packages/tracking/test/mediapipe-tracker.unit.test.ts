@@ -48,7 +48,7 @@ describe("MediaPipeTracker", () => {
     expect(m.FaceLandmarker.createFromOptions.mock.calls[0]![1].numFaces).toBe(2);
     expect(m.PoseLandmarker.createFromOptions.mock.calls[0]![1]).toMatchObject({
       runningMode: "VIDEO",
-      numPoses: 1,
+      numPoses: 2,
       baseOptions: { modelAssetPath: "p.task" },
     });
     expect(m.FaceLandmarker.createFromOptions.mock.calls[0]![1].baseOptions.modelAssetPath).toContain("face_landmarker");
@@ -102,5 +102,18 @@ describe("MediaPipeTracker", () => {
     expect(m.face.close).toHaveBeenCalledTimes(1);
     expect(m.pose.close).toHaveBeenCalledTimes(1);
     await expect(t.track(input)).rejects.toMatchObject({ code: "tracker-failed" });
+  });
+
+  it("dispose() during init closes what init created and leaves the tracker not ready", async () => {
+    let release!: () => void;
+    m.FaceLandmarker.createFromOptions.mockReturnValue(new Promise((r) => { release = () => r(m.face); }));
+    const t = new MediaPipeTracker();
+    const p = t.init(["face"]);
+    await Promise.resolve(); await Promise.resolve();
+    t.dispose();
+    release();
+    await p;
+    expect(m.face.close).toHaveBeenCalled();
+    await expect(t.track(input)).rejects.toBeInstanceOf(PlaceItError);
   });
 });

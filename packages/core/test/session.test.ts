@@ -186,4 +186,36 @@ describe("PlaceItSession", () => {
     expect(errs).toEqual([]);
     expect(renderer.renders).toHaveLength(1);
   });
+
+  it("a throwing tracking-lost listener does not stop the loop or raise an error", async () => {
+    const { s, renderer, tick } = await setup([withFace, noFace, noFace]);
+    const errs: PlaceItError[] = [];
+    s.on("error", (e) => errs.push(e));
+    s.on("tracking-lost", () => { throw new Error("host bug"); });
+    await s.start(); await tick(); await tick(); await tick();
+    expect(errs).toEqual([]);
+    expect(renderer.renders.length).toBe(3);
+  });
+
+  it("reportError emits error; stop() during load leaves the tracker uninitialised", async () => {
+    const { s } = await setup([withFace]);
+    const errs: PlaceItError[] = [];
+    s.on("error", (e) => errs.push(e));
+    s.reportError(new PlaceItError("physics-failed", "x"));
+    expect(errs.map((e) => e.code)).toEqual(["physics-failed"]);
+    const t = new FakeTracker([withFace]);
+    const s2 = new PlaceItSession({ input: new FakeInputSource([input]), tracker: t, renderer: new FakeRenderer(), scheduler: new FakeScheduler() });
+    const p = s2.load("m.glb", cfg);
+    s2.stop();
+    await p;
+    expect(t.needs).toEqual([]);
+  });
+
+  it("passes the config anchor to every rendered object", async () => {
+    const tracker = new FakeTracker([withFace]), renderer = new FakeRenderer(), scheduler = new FakeScheduler();
+    const s = new PlaceItSession({ input: new FakeInputSource([input]), tracker, renderer, scheduler });
+    await s.load("m.glb", { ...cfg, anchor: [0, 0.01, 0] });
+    await s.start(); scheduler.tick(0); await flush();
+    expect(renderer.renders[0]!.objects.map((o) => o.anchor)).toEqual([[0, 0.01, 0], [0, 0.01, 0]]);
+  });
 });
