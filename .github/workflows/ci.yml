@@ -2,6 +2,12 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      update-screenshots:
+        description: Regenerate render screenshot baselines and upload them as an artifact
+        type: boolean
+        default: false
 jobs:
   core:
     runs-on: ubuntu-latest
@@ -53,3 +59,33 @@ jobs:
       - run: pnpm --filter @place-it/tracking test:browser
       - run: pnpm build
       - run: pnpm size
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm --filter @place-it/render test
+      - run: pnpm --filter @place-it/render exec playwright install --with-deps chromium webkit
+      - run: pnpm --filter @place-it/render test:browser ${{ inputs.update-screenshots && '--update' || '' }}
+      - run: pnpm size
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-screenshot-diffs
+          path: packages/render/.vitest/attachments/
+          if-no-files-found: ignore
+      - if: always() && inputs.update-screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-screenshot-baselines
+          path: packages/render/test/__screenshots__/

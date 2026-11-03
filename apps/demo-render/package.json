@@ -1,0 +1,13 @@
+{
+  "name": "@place-it/demo-render",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": { "@place-it/core": "workspace:*", "@place-it/platform-web": "workspace:*", "@place-it/render": "workspace:*" },
+  "devDependencies": { "vite": "^8.3.5" }
+}
