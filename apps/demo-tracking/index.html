@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>place_it tracking demo</title>
+    <style>
+      body { margin: 0; background: #111; color: #eee; font: 14px sans-serif; }
+      #stage { position: relative; width: 640px; max-width: 100vw; }
+      #stage video, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+      #stage { aspect-ratio: 4 / 3; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><canvas id="overlay"></canvas></div>
+    <p id="status">Starting camera...</p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
