@@ -89,3 +89,22 @@ jobs:
         with:
           name: render-screenshot-baselines
           path: packages/render/test/__screenshots__/
+  physics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm --filter @place-it/physics test
+      - run: pnpm --filter @place-it/physics exec playwright install --with-deps chromium webkit
+      - run: pnpm --filter @place-it/physics test:browser
+      - run: pnpm size

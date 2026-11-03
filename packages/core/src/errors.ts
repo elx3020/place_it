@@ -4,7 +4,8 @@ export type ErrorCode =
   | "camera-denied"
   | "camera-unavailable"
   | "model-invalid"
-  | "tracker-failed";
+  | "tracker-failed"
+  | "physics-failed";
 
 export class PlaceItError extends Error {
   readonly code: ErrorCode;
