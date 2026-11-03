@@ -9,7 +9,28 @@ on:
         type: boolean
         default: false
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      platform-web: ${{ steps.filter.outputs.platform-web }}
+      tracking: ${{ steps.filter.outputs.tracking }}
+      render: ${{ steps.filter.outputs.render }}
+      physics: ${{ steps.filter.outputs.physics }}
+      place-it: ${{ steps.filter.outputs.place-it }}
+      demo: ${{ steps.filter.outputs.demo }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: .github/path-filters.yml
   core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +42,14 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
       - run: pnpm build
-      - run: pnpm size
+      - run: pnpm typecheck
+      - run: pnpm --filter @place-it/core test
+      - run: pnpm --filter @place-it/core size
   platform-web:
+    needs: changes
+    if: needs.changes.outputs.platform-web == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,11 +61,14 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
       - run: pnpm build
-      - run: pnpm size
+      - run: pnpm typecheck
+      - run: pnpm --filter @place-it/platform-web test
+      - run: pnpm --filter @place-it/platform-web size
   tracking:
+    needs: changes
+    if: needs.changes.outputs.tracking == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,13 +80,16 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
+      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm --filter @place-it/tracking test
       - run: pnpm --filter @place-it/tracking exec playwright install --with-deps chromium
       - run: pnpm --filter @place-it/tracking test:browser
-      - run: pnpm build
-      - run: pnpm size
+      - run: pnpm --filter @place-it/tracking size
   render:
+    needs: changes
+    if: needs.changes.outputs.render == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +107,7 @@ jobs:
       - run: pnpm --filter @place-it/render test
       - run: pnpm --filter @place-it/render exec playwright install --with-deps chromium webkit
       - run: pnpm --filter @place-it/render test:browser ${{ inputs.update-screenshots && '--update' || '' }}
-      - run: pnpm size
+      - run: pnpm --filter @place-it/render size
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -90,6 +120,8 @@ jobs:
           name: render-screenshot-baselines
           path: packages/render/test/__screenshots__/
   physics:
+    needs: changes
+    if: needs.changes.outputs.physics == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,8 +139,10 @@ jobs:
       - run: pnpm --filter @place-it/physics test
       - run: pnpm --filter @place-it/physics exec playwright install --with-deps chromium webkit
       - run: pnpm --filter @place-it/physics test:browser
-      - run: pnpm size
+      - run: pnpm --filter @place-it/physics size
   place-it:
+    needs: changes
+    if: needs.changes.outputs.place-it == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,4 +161,30 @@ jobs:
       # installs both the headless shell and full Chromium (the test uses new headless for real permission prompts)
       - run: pnpm --filter @place-it/demo-tryon exec playwright install --with-deps chromium
       - run: pnpm --filter @place-it/demo-tryon test:browser
-      - run: pnpm size
+      - run: pnpm --filter place-it size
+  demo:
+    needs: changes
+    if: needs.changes.outputs.demo == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
+      - run: pnpm build
+      - run: pnpm typecheck
+  ci-ok:
+    if: always()
+    needs: [changes, core, platform-web, tracking, render, physics, place-it, demo]
+    runs-on: ubuntu-latest
+    steps:
+      # skipped counts as success; failed or cancelled does not
+      - run: |
+          echo '${{ toJSON(needs) }}'
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false"

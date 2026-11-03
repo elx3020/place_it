@@ -6,7 +6,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "size": "pnpm -r size"
+    "size": "pnpm -r size",
+    "check:ci": "node scripts/check-ci.mjs"
   },
   "devDependencies": {
     "@size-limit/file": "^14.3.0",
