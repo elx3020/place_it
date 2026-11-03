@@ -72,7 +72,12 @@ describe("ThreeRenderer", () => {
     expect(c.x).toBeCloseTo(0.7, 1);
     expect(c.y).toBeCloseTo(0.4, 1);
     expectPixel(shot.pixels!, 5, 5, [60, 160, 90]); // the image's top-right (green) quadrant is now top-left
-    await expect.element(page.elementLocator(canvas)).toMatchScreenshot("sphere-over-still", {
+    // Screenshot a 2D copy of the captured pixels: WebKit shows the presented WebGL canvas blank in element screenshots.
+    const copy = Object.assign(document.createElement("canvas"), { width: canvas.width, height: canvas.height });
+    copy.style.display = "block";
+    copy.getContext("2d")!.putImageData(shot.pixels!, 0, 0);
+    document.body.append(copy);
+    await expect.element(page.elementLocator(copy)).toMatchScreenshot("sphere-over-still", {
       comparatorName: "pixelmatch",
       comparatorOptions: { allowedMismatchedPixelRatio: 0.02 },
     });
