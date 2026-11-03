@@ -1,0 +1,19 @@
+{
+  "name": "@place-it/platform-web",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsup",
+    "size": "size-limit"
+  },
+  "dependencies": { "@place-it/core": "workspace:*" },
+  "devDependencies": { "happy-dom": "^20.0.0" },
+  "size-limit": [{ "path": "dist/index.js", "limit": "10 KB", "gzip": true }]
+}
