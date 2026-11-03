@@ -90,6 +90,41 @@ describe("PlaceItSession", () => {
     expect(renderer.renders).toHaveLength(0);
   });
 
+  it("(e2) a callback already in flight after stop() does not render", async () => {
+    const { s, renderer, scheduler, tick } = await setup([withFace]);
+    scheduler.cancel = () => {}; // cancel ineffective: the guard must be in the session
+    await s.start(); s.stop(); await tick();
+    expect(renderer.renders).toHaveLength(0);
+  });
+
+  it("(i) stop() during in-flight track() that rejects: no error, no render", async () => {
+    const { s, tracker, renderer, scheduler } = await setup([withFace]);
+    let rej!: (e: Error) => void;
+    tracker.track = () => new Promise((_, r) => { rej = r; });
+    const errs: PlaceItError[] = []; s.on("error", (e) => errs.push(e));
+    await s.start(); scheduler.tick(0); await flush();
+    s.stop(); rej(new Error("disposed")); await flush();
+    expect(errs).toEqual([]); expect(renderer.renders).toHaveLength(0);
+  });
+
+  it("(ii) stop() during pending input.start(): stream closed, no loop", async () => {
+    const { s, inp, scheduler } = await setup([withFace]);
+    let done!: () => void;
+    inp.start = () => new Promise<void>((r) => { done = r; });
+    const stop = vi.spyOn(inp, "stop"); const req = vi.spyOn(scheduler, "request");
+    const p = s.start(); s.stop(); done(); await p;
+    expect(stop).toHaveBeenCalledTimes(2); expect(req).not.toHaveBeenCalled();
+  });
+
+  it("(iii) input.start() rejecting after stop() emits no error", async () => {
+    const { s, inp } = await setup([withFace]);
+    let rej!: (e: Error) => void;
+    inp.start = () => new Promise<void>((_, r) => { rej = r; });
+    const errs: PlaceItError[] = []; s.on("error", (e) => errs.push(e));
+    const p = s.start(); s.stop(); rej(new Error("late")); await p;
+    expect(errs).toEqual([]);
+  });
+
   it("(f) tracker throw emits tracker-failed and stops loop", async () => {
     const { s, tracker, renderer, tick } = await setup([withFace]);
     tracker.track = async () => { throw new Error("gpu"); };

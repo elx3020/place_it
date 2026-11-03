@@ -41,11 +41,13 @@ export class PlaceItSession {
     try {
       await this.o.input.start();
     } catch (e) {
+      if (this.stopped) return;
       this.running = false;
       this.emit("error", e instanceof PlaceItError ? e : new PlaceItError("camera-unavailable", String((e as Error)?.message ?? e)));
       return;
     }
-    if (this.running) this.schedule();
+    if (this.stopped) { this.o.input.stop(); return; } // stop() ran before the stream existed
+    this.schedule();
   }
 
   stop(): void {
@@ -91,6 +93,7 @@ export class PlaceItSession {
         this.o.renderer.render(frame, objects);
       }
     } catch (e) {
+      if (this.stopped) return;
       this.running = false;
       this.emit("error", e instanceof PlaceItError ? e : new PlaceItError("tracker-failed", String((e as Error)?.message ?? e)));
       return;
