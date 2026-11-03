@@ -26,13 +26,14 @@ export class PlaceItSession {
 
   constructor(private o: SessionOptions) {}
 
+  /** start() may run before this resolves: the loop draws nothing until every part is ready. */
   async load(modelUrl: string, config: PlacementConfig): Promise<void> {
-    this.config = config;
     await this.o.renderer.init();
     await this.o.renderer.loadModel(modelUrl);
     await this.o.physics?.init();
     // both targets use the face mesh plus pose landmarks
     await this.o.tracker.init(["face", "pose"]);
+    this.config = config;
   }
 
   async start(): Promise<void> {
@@ -105,6 +106,7 @@ export class PlaceItSession {
     const w = this.o.physics;
     if (!w) return poses;
     poses.forEach((p, i) => {
+      if (!p.visible) return; // hidden poses have scale 0, so no valid radius; the body stays where it was
       this.bodies[i] ??= w.addBody({ kind: "kinematic", position: p.position, radius: 0.02 * p.scale });
       w.setKinematicTarget(this.bodies[i]!, p.position);
     });

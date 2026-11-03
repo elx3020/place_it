@@ -227,6 +227,22 @@ importers:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)
 
+  apps/demo-tryon:
+    dependencies:
+      '@place-it/render':
+        specifier: workspace:*
+        version: link:../../packages/render
+      place-it:
+        specifier: workspace:*
+        version: link:../../packages/place-it
+    devDependencies:
+      playwright:
+        specifier: ^1.50.0
+        version: 1.64.1
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)
+
   packages/core: {}
 
   packages/physics:
@@ -247,6 +263,34 @@ importers:
       playwright:
         specifier: ^1.50.0
         version: 1.64.1
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)
+
+  packages/place-it:
+    dependencies:
+      '@place-it/core':
+        specifier: workspace:*
+        version: link:../core
+      '@place-it/physics':
+        specifier: workspace:*
+        version: link:../physics
+      '@place-it/platform-web':
+        specifier: workspace:*
+        version: link:../platform-web
+      '@place-it/render':
+        specifier: workspace:*
+        version: link:../render
+      '@place-it/tracking':
+        specifier: workspace:*
+        version: link:../tracking
+    devDependencies:
+      '@types/three':
+        specifier: 0.187.0
+        version: 0.187.0
+      three:
+        specifier: 0.187.0
+        version: 0.187.0
       vite:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)

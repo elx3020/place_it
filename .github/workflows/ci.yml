@@ -108,3 +108,23 @@ jobs:
       - run: pnpm --filter @place-it/physics exec playwright install --with-deps chromium webkit
       - run: pnpm --filter @place-it/physics test:browser
       - run: pnpm size
+  place-it:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # build first: packages resolve each other through dist/ for typecheck and browser tests
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm --filter place-it test
+      # installs both the headless shell and full Chromium (the test uses new headless for real permission prompts)
+      - run: pnpm --filter @place-it/demo-tryon exec playwright install --with-deps chromium
+      - run: pnpm --filter @place-it/demo-tryon test:browser
+      - run: pnpm size

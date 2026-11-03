@@ -8,4 +8,4 @@ const physics = new WorkerPhysics({ workerUrl: new URL("@place-it/physics/worker
 await physics.init(); // rejects with PlaceItError "physics-failed" if the worker fails
 ```
 
-Umbrella package: copy/serve `@place-it/physics/dist/worker.js` next to the CDN bundle and default `workerUrl` to `resolveAssetUrl("worker.js")` (or a `new URL("./worker.js", import.meta.url)` relative to the built file). Script-tag users pass `workerUrl` explicitly. The worker is loaded with `{ type: "module" }`.
+The `place-it` umbrella ships this file as `dist/physics-worker.js` and defaults `workerUrl` to it, next to its bundle (or under its `baseUrl`). The worker is loaded with `{ type: "module" }`.

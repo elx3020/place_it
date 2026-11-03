@@ -1,0 +1,31 @@
+{
+  "name": "place-it",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsup && vite build && vite build --mode chunks",
+    "size": "size-limit"
+  },
+  "dependencies": {
+    "@place-it/core": "workspace:*",
+    "@place-it/physics": "workspace:*",
+    "@place-it/platform-web": "workspace:*",
+    "@place-it/render": "workspace:*",
+    "@place-it/tracking": "workspace:*"
+  },
+  "devDependencies": { "@types/three": "0.187.0", "three": "0.187.0", "vite": "^8.3.5" },
+  "size-limit": [
+    { "name": "entry: place-it.global.js", "path": "dist/place-it.global.js", "limit": "150 KB", "gzip": true },
+    { "name": "lazy: render.js (three)", "path": "dist/render.js", "limit": "300 KB", "gzip": true },
+    { "name": "lazy: tracking.js (MediaPipe JS; its WASM and models load from their CDNs)", "path": "dist/tracking.js", "limit": "60 KB", "gzip": true },
+    { "name": "lazy: physics.js", "path": "dist/physics.js", "limit": "2 KB", "gzip": true },
+    { "name": "lazy: physics-worker.js (Rapier + WASM)", "path": "dist/physics-worker.js", "limit": "2 MB", "gzip": true }
+  ]
+}

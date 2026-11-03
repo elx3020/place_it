@@ -156,4 +156,34 @@ describe("PlaceItSession", () => {
     expect(add).toHaveBeenCalledTimes(2);
     expect(renderer.renders[1]!.objects[0]!.pose.visible).toBe(true);
   });
+
+  it("physics: hidden poses get no body (a zero-radius body would fail validation)", async () => {
+    const { s, physics, tick } = await setup([noFace, withFace], true);
+    const add = vi.spyOn(physics!, "addBody");
+    const errs: PlaceItError[] = []; s.on("error", (e) => errs.push(e));
+    await s.start(); await tick();
+    expect(add).not.toHaveBeenCalled();
+    await tick();
+    expect(add.mock.calls.map(([d]) => d.radius > 0)).toEqual([true, true]);
+    expect(errs).toEqual([]);
+  });
+
+  it("start() while load() is pending does not track before the tracker is ready", async () => {
+    const tracker = new FakeTracker([withFace]), renderer = new FakeRenderer(), scheduler = new FakeScheduler();
+    let ready = false, initDone!: () => void;
+    tracker.init = () => new Promise<void>((r) => { initDone = () => { ready = true; r(); }; });
+    const track = vi.spyOn(tracker, "track").mockImplementation(async () => {
+      if (!ready) throw new Error("track() before init()");
+      return withFace;
+    });
+    const s = new PlaceItSession({ input: new FakeInputSource([input]), tracker, renderer, scheduler });
+    const errs: PlaceItError[] = []; s.on("error", (e) => errs.push(e));
+    const loading = s.load("m.glb", cfg);
+    await s.start(); scheduler.tick(0); await flush();
+    expect(track).not.toHaveBeenCalled();
+    initDone(); await loading;
+    scheduler.tick(1); await flush();
+    expect(errs).toEqual([]);
+    expect(renderer.renders).toHaveLength(1);
+  });
 });
