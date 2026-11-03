@@ -5,7 +5,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./testing": { "types": "./dist/testing/index.d.ts", "import": "./dist/testing/index.js" }
+  },
   "files": ["dist"],
   "scripts": {
     "typecheck": "tsc --noEmit",
