@@ -40,4 +40,30 @@ describe("CameraSource", () => {
     cam.stop();
     tracks.forEach((t) => expect(t.stop).toHaveBeenCalledTimes(1));
   });
+
+  it("releases a stream that resolves after stop()", async () => {
+    const tracks = [{ stop: vi.fn() }, { stop: vi.fn() }];
+    let resolve!: (s: unknown) => void;
+    stubMedia(() => new Promise((r) => (resolve = r)));
+    const setSrc = vi.spyOn(HTMLMediaElement.prototype, "srcObject", "set").mockImplementation(() => {});
+    const cam = new CameraSource();
+    const p = cam.start();
+    cam.stop();
+    resolve({ getTracks: () => tracks });
+    await expect(p).resolves.toBeUndefined();
+    tracks.forEach((t) => expect(t.stop).toHaveBeenCalledTimes(1));
+    expect(setSrc).not.toHaveBeenCalledWith(expect.anything());
+  });
+
+  it("stops the stream and throws PlaceItError when play() rejects", async () => {
+    const tracks = [{ stop: vi.fn() }];
+    stubMedia(() => Promise.resolve({ getTracks: () => tracks }));
+    vi.spyOn(HTMLMediaElement.prototype, "srcObject", "set").mockImplementation(() => {});
+    const cam = new CameraSource();
+    vi.spyOn(cam.video, "play").mockRejectedValue(domErr("NotAllowedError"));
+    await expect(cam.start()).rejects.toMatchObject({ code: "camera-denied" });
+    expect(tracks[0]!.stop).toHaveBeenCalledTimes(1);
+    cam.stop();
+    expect(tracks[0]!.stop).toHaveBeenCalledTimes(1);
+  });
 });
