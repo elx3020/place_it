@@ -2,6 +2,7 @@ import type { PlacementConfig } from "./config";
 import { PlaceItError } from "./errors";
 import type { BodyId, InputSource, PhysicsWorld, Pose, RenderObject, Renderer, Scheduler, Tracker } from "./interfaces";
 import { computePlacements } from "./placement";
+import { PoseSmoother, type SmoothingOptions } from "./smoothing";
 
 export interface SessionOptions {
   input: InputSource;
@@ -9,6 +10,8 @@ export interface SessionOptions {
   renderer: Renderer;
   physics?: PhysicsWorld;
   scheduler: Scheduler;
+  /** One Euro smoothing of poses; on by default, `false` turns it off. */
+  smoothing?: SmoothingOptions | false;
 }
 
 type Listener = (e: PlaceItError) => void;
@@ -23,8 +26,11 @@ export class PlaceItSession {
   private lastMs?: number;
   private wasVisible = false;
   private lost = false;
+  private smoother?: PoseSmoother;
 
-  constructor(private o: SessionOptions) {}
+  constructor(private o: SessionOptions) {
+    if (o.smoothing !== false) this.smoother = new PoseSmoother(o.smoothing);
+  }
 
   /** start() may run before this resolves: the loop draws nothing until every part is ready. */
   async load(modelUrl: string, config: PlacementConfig): Promise<void> {
@@ -95,7 +101,8 @@ export class PlaceItSession {
       if (frame && this.config) {
         const tracked = await this.o.tracker.track(frame);
         if (!this.running) return;
-        const poses = this.applyPhysics(computePlacements(this.config, tracked), now);
+        const placed = computePlacements(this.config, tracked);
+        const poses = this.applyPhysics(this.smoother ? this.smoother.smooth(placed, now) : placed, now);
         const visible = poses.some((p) => p.visible);
         if (this.wasVisible && !visible) { this.lost = true; events.push("tracking-lost"); }
         else if (visible && this.lost) { this.lost = false; events.push("tracking-found"); }

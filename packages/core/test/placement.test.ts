@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  computePlacements, REFERENCE_FACE_WIDTH_M, REFERENCE_SHOULDER_WIDTH_M, NECK_CHIN_TO_SHOULDER, EAR_POSE_WEIGHT,
+  computePlacements, REFERENCE_FACE_WIDTH_M, REFERENCE_SHOULDER_WIDTH_M, NECK_CHIN_TO_SHOULDER, EAR_POSE_WEIGHT, LOBE_OUTWARD, LOBE_DOWN, FACE_WIDTH_PER_HEIGHT,
 } from "../src/index";
 import type { Landmark, PlacementConfig, Pose, TrackingFrame } from "../src/index";
 
@@ -10,7 +10,16 @@ const points = (n: number, over: Record<number, Landmark>) => {
   for (const [k, v] of Object.entries(over)) a[Number(k)] = v;
   return a;
 };
-const face = (over: Record<number, Landmark>) => points(478, over);
+const face = (over: Record<number, Landmark>) => {
+  const f = points(478, over);
+  const [a, b] = [over[234], over[454]];
+  // the lobe offset is scaled by forehead (10) to chin (152) height: give a frontal face the height that matches its ear width
+  if (a && b && !over[10] && !over[152]) {
+    const h = Math.hypot((a.x - b.x) * (640 / 480), a.y - b.y) / FACE_WIDTH_PER_HEIGHT;
+    f[10] = lm(0.5, 0.1); f[152] = lm(0.5, 0.1 + h);
+  }
+  return f;
+};
 const body = (over: Record<number, Landmark>) => points(33, over);
 const frame = (faces: Landmark[][], extra: Partial<TrackingFrame> = {}): TrackingFrame => ({
   timestampMs: 0, imageSize: { width: 640, height: 480 }, faces, faceMatrices: faces.map(() => undefined), ...extra,
@@ -19,8 +28,8 @@ const ear = (mirror = false): PlacementConfig => ({ version: 1, target: "ear", a
 const neck: PlacementConfig = { version: 1, target: "neck", anchor: [0, 0, 0], scale: 2 };
 const HIDDEN: Pose = { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: 0, visible: false };
 const aspect = 640 / 480;
-/** Where the lobe lands for a level ear line from x=xa (this ear) to x=xb (the other): outward 0.14 and down 0.22 face widths. */
-const lobe = (x: number, y: number, xa: number, xb: number): [number, number] => [x - 0.14 * (xb - xa), y + 0.22 * (xb - xa) * aspect];
+/** Where the lobe lands for a level ear line from x=xa (this ear) to x=xb (the other): outward LOBE_OUTWARD and down LOBE_DOWN face widths. */
+const lobe = (x: number, y: number, xa: number, xb: number): [number, number] => [x - LOBE_OUTWARD * (xb - xa), y + LOBE_DOWN * (xb - xa) * aspect];
 
 describe("placement", () => {
   it("(a) ear: one pose at landmark 234, scale = config.scale * faceWidth / 0.14, rotation from head matrix", () => {
@@ -49,6 +58,16 @@ describe("placement", () => {
     expect(p!.position[0]).toBeCloseTo(x, 10);
     expect(p!.position[1]).toBeCloseTo(y, 10);
     expect(p!.position[2]).toBe(0.01);
+  });
+
+  it("ear: lobe drop follows the face height, so a yawed head (collapsed ear width) does not shrink it", () => {
+    const f = face({ 234: lm(0.45, 0.5), 454: lm(0.55, 0.5), 10: lm(0.5, 0.2), 152: lm(0.5, 0.6) });
+    const [c, n] = [Math.cos(Math.PI / 3), Math.sin(Math.PI / 3)];
+    const yawed = [c, 0, -n, 0, 0, 1, 0, 0, n, 0, c, 0, 0, 0, 0, 1];
+    const [front] = computePlacements(ear(), frame([f]));
+    const [yaw] = computePlacements(ear(), frame([f], { faceMatrices: [yawed] }));
+    expect(yaw!.position[1]).toBeCloseTo(front!.position[1], 10);
+    expect(front!.position[1] - 0.5).toBeCloseTo(LOBE_DOWN * FACE_WIDTH_PER_HEIGHT * 0.4, 10);
   });
 
   it("(b) mirror: two poses (234 then 454) mirrored about the face center", () => {

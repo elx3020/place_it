@@ -6,15 +6,23 @@ export const REFERENCE_FACE_WIDTH_M = 0.14;
 export const REFERENCE_SHOULDER_WIDTH_M = 0.38;
 /** Neck anchor: this fraction of the way from the chin to the shoulder midpoint. */
 export const NECK_CHIN_TO_SHOULDER = 0.4;
-/** How far the face-mesh ear point is pulled toward the pose ear landmark, when pose is tracked. */
-export const EAR_POSE_WEIGHT = 0.5;
-/** The earlobe sits below and slightly behind the face-edge point, in face widths (outward along the ear line, down perpendicular to it). */
-export const LOBE_OUTWARD = 0.14;
-export const LOBE_DOWN = 0.22;
+/** How far the face-mesh ear point is pulled toward the pose ear landmark, when pose is tracked. 0: the lite pose model is noisier than the face mesh. */
+export const EAR_POSE_WEIGHT = 0;
+/** The earlobe sits below and slightly behind the face-edge point, in face widths (outward along the head x axis, down along its -y axis). */
+export const LOBE_OUTWARD = 0.015;
+export const LOBE_DOWN = 0.2;
+/**
+ * The ear sits behind the face-edge point, along the head's z axis, in face widths. Fitted on screenshots, separately for the image x and y
+ * components: about 0.2 from yaw at 40 and 68 degrees, about 0.38 from one frame at 26 degrees of pitch (only a few frames, so treat as rough).
+ */
+export const LOBE_BACK_X = 0.15;
+export const LOBE_BACK_Y = 0.2;
+/** Face width / face height (forehead 10 to chin 152) when facing the camera. The height barely changes with yaw, the 234-454 width collapses, so the height gives the face width. */
+export const FACE_WIDTH_PER_HEIGHT = 0.87;
 
 // Face mesh: 234 / 454 = face edge at the ears (image-left / image-right on an unmirrored frame), 152 = chin.
 // Pose: 7 / 8 = the subject's left / right ear, 11 / 12 = left / right shoulder. 234 is the subject's right side, so it pairs with 8.
-const FACE_A = 234, FACE_B = 454, CHIN = 152, POSE_EAR_L = 7, POSE_EAR_R = 8, SHOULDER_L = 11, SHOULDER_R = 12;
+const FACE_A = 234, FACE_B = 454, CHIN = 152, FOREHEAD = 10, POSE_EAR_L = 7, POSE_EAR_R = 8, SHOULDER_L = 11, SHOULDER_R = 12;
 
 type TargetPlacer = (config: PlacementConfig, frame: TrackingFrame) => Pose[];
 type Quat = Pose["rotation"];
@@ -84,15 +92,27 @@ function headRotation(m: number[] | undefined): Quat {
   return [(m02 + m20) / s, (m12 + m21) / s, s / 4, (m10 - m01) / s];
 }
 
-/** Moves a face-edge point to the earlobe: `side` is the point's own landmark, `other` the opposite one. */
-function toLobe(frame: TrackingFrame, p: Vec3, side?: Landmark, other?: Landmark): Vec3 {
+const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+
+/**
+ * Moves a face-edge point to the earlobe. The offset is fixed in head space (outward along the head's x axis, down along its -y axis, back along its -z axis,
+ * in face widths) and projected into the image with the head transform, so it follows yaw, pitch and roll.
+ * `side` is the point's own landmark, `other` the opposite one; no matrix means a frontal head.
+ */
+function toLobe(frame: TrackingFrame, p: Vec3, face: Landmark[], side?: Landmark, other?: Landmark, m: number[] = IDENTITY): Vec3 {
   const a = frame.imageSize.width / frame.imageSize.height;
-  const w = width(frame, side, other);
-  if (!side || !other || !(w > 0)) return p;
-  const u = [((side.x - other.x) * a) / w, (side.y - other.y) / w]; // outward, image-height units
-  const d = [-u[1]!, u[0]!]; // perpendicular...
-  if (d[1]! < 0) { d[0] = -d[0]!; d[1] = -d[1]!; } // ...pointing down the image
-  const k = (i: number) => (u[i]! * LOBE_OUTWARD + d[i]! * LOBE_DOWN) * w;
+  const h = width(frame, face[FOREHEAD], face[CHIN]);
+  if (!side || !other || !(h > 0)) return p;
+  // Unit head axis in image-height units: camera x is right, y is up, the image y points down.
+  const axis = (c: number) => {
+    const n = Math.hypot(m[c * 4]!, m[c * 4 + 1]!, m[c * 4 + 2]!);
+    return [m[c * 4]! / n, -m[c * 4 + 1]! / n] as const;
+  };
+  const x = axis(0), y = axis(1), z = axis(2); // z points out of the face, so the ear is at -z
+  // Outward is whichever way along the head x axis points from `other` to `side`.
+  const out = Math.sign((side.x - other.x) * a * x[0] + (side.y - other.y) * x[1]) || 1;
+  const faceW = (FACE_WIDTH_PER_HEIGHT * h) / Math.max(Math.hypot(...y), 0.25); // y is the head's up axis; the clamp stops a face-up/down head from blowing it up
+  const k = (i: 0 | 1) => (out * x[i] * LOBE_OUTWARD - y[i] * LOBE_DOWN - z[i] * (i ? LOBE_BACK_Y : LOBE_BACK_X)) * faceW;
   return [p[0] + k(0) / a, p[1] + k(1), p[2]];
 }
 
@@ -105,7 +125,7 @@ const ear: TargetPlacer = ({ mirror, scale = 1 }, frame) => {
   return sides.map(([f, o, p]) => {
     const point = face?.[f];
     const edge = toward(point, body?.[p] ?? point, EAR_POSE_WEIGHT);
-    return place(toLobe(frame, edge, point, face?.[o]), headRotation(frame.faceMatrices[i]), s);
+    return place(toLobe(frame, edge, face ?? [], point, face?.[o], frame.faceMatrices[i]), headRotation(frame.faceMatrices[i]), s);
   });
 };
 

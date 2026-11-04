@@ -4,3 +4,4 @@ export * from "./config";
 export * from "./interfaces";
 export * from "./placement";
 export * from "./session";
+export * from "./smoothing";

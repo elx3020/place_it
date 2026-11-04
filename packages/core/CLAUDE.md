@@ -7,6 +7,7 @@ Contracts and pure logic shared by every other package. Root rules in `../../CLA
 - `src/interfaces.ts`: InputSource, Tracker, Renderer, RenderPass, PhysicsWorld, Scheduler.
 - `src/config.ts`: JSON config schema (`parseConfig` / `serializeConfig`, `version: 1`).
 - `src/placement.ts`: placement math (anchor, `Pose.position` normalized, `Pose.scale` as a ratio).
+- `src/smoothing.ts`: `PoseSmoother` (One Euro filter on position, rotation, scale); on by default in the session.
 - `src/session.ts`: `PlaceItSession`, which wires the interfaces together.
 - `src/errors.ts`: `PlaceItError` and its error codes.
 - `src/testing/fakes.ts`: test doubles, exported as `@place-it/core/testing`.
