@@ -7,6 +7,10 @@
     "test": "pnpm -r test",
     "build": "pnpm -r build",
     "size": "pnpm -r size",
+    "demo:tracking": "pnpm --filter @place-it/demo-tracking dev",
+    "demo:physics": "pnpm --filter @place-it/demo-physics dev",
+    "demo:render": "pnpm --filter @place-it/demo-render dev",
+    "demo:tryon": "pnpm --filter @place-it/demo-tryon dev",
     "check:ci": "node scripts/check-ci.mjs"
   },
   "devDependencies": {
