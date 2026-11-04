@@ -83,6 +83,19 @@ describe("ThreeRenderer", () => {
     });
   });
 
+  it("draws a <video> frame (a plain texture over a video element would be 0x0 and black)", async () => {
+    const { r, shot } = await setup();
+    const src = Object.assign(document.createElement("canvas"), { width: 64, height: 48 });
+    const g = src.getContext("2d")!;
+    g.fillStyle = "rgb(40,80,160)";
+    g.fillRect(0, 0, 64, 48);
+    const video = Object.assign(document.createElement("video"), { srcObject: src.captureStream(30), muted: true });
+    await video.play();
+    while (video.readyState < 2) await new Promise((res) => setTimeout(res, 20));
+    r.render({ handle: video, width: 64, height: 48, timestampMs: 0 }, []);
+    expectPixel(shot.pixels!, 160, 120, [40, 80, 160]);
+  });
+
   it("keeps the image orientation when not mirrored", async () => {
     const { r, input, shot } = await setup(320, 240, false);
     await r.loadModel(sphereUrl);

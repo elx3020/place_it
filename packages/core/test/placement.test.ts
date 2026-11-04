@@ -19,6 +19,8 @@ const ear = (mirror = false): PlacementConfig => ({ version: 1, target: "ear", a
 const neck: PlacementConfig = { version: 1, target: "neck", anchor: [0, 0, 0], scale: 2 };
 const HIDDEN: Pose = { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: 0, visible: false };
 const aspect = 640 / 480;
+/** Where the lobe lands for a level ear line from x=xa (this ear) to x=xb (the other): outward 0.14 and down 0.22 face widths. */
+const lobe = (x: number, y: number, xa: number, xb: number): [number, number] => [x - 0.14 * (xb - xa), y + 0.22 * (xb - xa) * aspect];
 
 describe("placement", () => {
   it("(a) ear: one pose at landmark 234, scale = config.scale * faceWidth / 0.14, rotation from head matrix", () => {
@@ -26,7 +28,9 @@ describe("placement", () => {
     const [p, ...rest] = computePlacements(ear(), frame([f]));
     expect(rest).toEqual([]);
     expect(p!.visible).toBe(true);
-    expect(p!.position).toEqual([0.4, 0.5, 0.01]);
+    expect(p!.position[0]).toBeLessThan(0.4); // outward (away from the other ear)
+    expect(p!.position[1]).toBeGreaterThan(0.5); // and down
+    expect(p!.position[2]).toBe(0.01);
     expect(p!.rotation).toEqual([0, 0, 0, 1]);
     expect(p!.scale).toBeCloseTo((2 * Math.hypot(0.15 * aspect, 0.03)) / REFERENCE_FACE_WIDTH_M, 10);
 
@@ -41,8 +45,9 @@ describe("placement", () => {
     const f = face({ 234: lm(0.4, 0.5, 0.01), 454: lm(0.6, 0.5) });
     const [p] = computePlacements(ear(), frame([f], { pose: body({ 8: lm(0.3, 0.6, -0.5) }) }));
     const w = EAR_POSE_WEIGHT;
-    expect(p!.position[0]).toBeCloseTo(0.4 + (0.3 - 0.4) * w, 10);
-    expect(p!.position[1]).toBeCloseTo(0.5 + (0.6 - 0.5) * w, 10);
+    const [x, y] = lobe(0.4 + (0.3 - 0.4) * w, 0.5 + (0.6 - 0.5) * w, 0.4, 0.6);
+    expect(p!.position[0]).toBeCloseTo(x, 10);
+    expect(p!.position[1]).toBeCloseTo(y, 10);
     expect(p!.position[2]).toBe(0.01);
   });
 
@@ -88,10 +93,10 @@ describe("placement", () => {
     const tieA = face({ 234: lm(0.375, 0.5), 454: lm(0.5, 0.5) });
     const tieB = face({ 234: lm(0.625, 0.5), 454: lm(0.75, 0.5) });
     for (let i = 0; i < 3; i++) {
-      expect(computePlacements(ear(), frame([narrow, wide]))[0]!.position[0]).toBe(0.2);
-      expect(computePlacements(ear(), frame([wide, narrow]))[0]!.position[0]).toBe(0.2);
-      expect(computePlacements(ear(), frame([tieA, tieB]))[0]!.position[0]).toBe(0.375);
-      expect(computePlacements(ear(), frame([tieB, tieA]))[0]!.position[0]).toBe(0.625);
+      expect(computePlacements(ear(), frame([narrow, wide]))[0]!.position[0]).toBeCloseTo(lobe(0.2, 0, 0.2, 0.6)[0], 10);
+      expect(computePlacements(ear(), frame([wide, narrow]))[0]!.position[0]).toBeCloseTo(lobe(0.2, 0, 0.2, 0.6)[0], 10);
+      expect(computePlacements(ear(), frame([tieA, tieB]))[0]!.position[0]).toBeCloseTo(lobe(0.375, 0, 0.375, 0.5)[0], 10);
+      expect(computePlacements(ear(), frame([tieB, tieA]))[0]!.position[0]).toBeCloseTo(lobe(0.625, 0, 0.625, 0.75)[0], 10);
     }
   });
 
@@ -125,7 +130,8 @@ describe("placement", () => {
     const far = body({ 0: lm(0.9, 0.2), 8: lm(0.95, 0.2) });
     const mine = body({ 0: lm(0.5, 0.52), 8: lm(0.4, 0.5) });
     const [p] = computePlacements(ear(), frame([f], { poses: [far, mine], pose: far }));
-    expect(p!.position[0]).toBeCloseTo(0.4); // pulled toward `mine`'s ear, which equals the face point
-    expect(p!.position[1]).toBeCloseTo(0.5);
+    const [x, y] = lobe(0.4, 0.5, 0.4, 0.6); // pulled toward `mine`'s ear, which equals the face point
+    expect(p!.position[0]).toBeCloseTo(x);
+    expect(p!.position[1]).toBeCloseTo(y);
   });
 });

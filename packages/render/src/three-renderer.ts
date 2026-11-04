@@ -2,7 +2,7 @@ import { PlaceItError, type FrameInput, type Pose, type RenderObject, type Rende
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import {
   Box3, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshBasicMaterial, type Object3D,
-  OrthographicCamera, PlaneGeometry, Scene, SRGBColorSpace, Texture, Vector3, WebGPURenderer,
+  OrthographicCamera, PlaneGeometry, Scene, SRGBColorSpace, Texture, Vector3, VideoTexture, WebGPURenderer,
 } from "three/webgpu";
 import { createOccluder } from "./occluder";
 import { PassPipeline } from "./passes";
@@ -43,8 +43,9 @@ export class ThreeRenderer implements Renderer {
   private readonly camera = new OrthographicCamera(0, 1, 0, -1, -DEPTH, DEPTH);
   /** Image space in pixels with y negated; flipped on x for the selfie view so frame, objects, and occluder stay aligned. */
   private readonly world = new Group();
-  private readonly frame = new Texture();
+  private frame: Texture = new Texture();
   private readonly background: Mesh;
+  private readonly backgroundMaterial = new MeshBasicMaterial({ depthTest: false, depthWrite: false, side: DoubleSide });
   private readonly occluder = createOccluder();
   private occluderPose?: Pose;
   private readonly models = new Map<string, Model>();
@@ -65,7 +66,7 @@ export class ThreeRenderer implements Renderer {
     const plane = new PlaneGeometry(1, 1).translate(0.5, -0.5, 0);
     const uv = plane.getAttribute("uv");
     for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
-    this.background = new Mesh(plane, new MeshBasicMaterial({ map: this.frame, depthTest: false, depthWrite: false, side: DoubleSide }));
+    this.background = new Mesh(plane, this.backgroundMaterial);
     this.background.renderOrder = -2;
     const sun = new DirectionalLight(0xffffff, 2);
     sun.position.set(1, 1, 2);
@@ -170,8 +171,13 @@ export class ThreeRenderer implements Renderer {
   private setFrame(handle: TexImageSource): void {
     if (this.frame.image !== handle) {
       this.frame.dispose(); // drop the old GPU texture: the new source may have another size
-      this.frame.image = handle;
+      // a plain Texture over a <video> gets a 0x0 GPU texture (the element's width attribute is 0): VideoTexture reads videoWidth
+      this.frame = handle instanceof HTMLVideoElement ? new VideoTexture(handle) : new Texture(handle);
+      this.frame.flipY = false; // ImageBitmap ignores flipY on WebGL, so flip with UVs instead
+      this.frame.colorSpace = SRGBColorSpace;
       this.frame.needsUpdate = true;
+      this.backgroundMaterial.map = this.frame;
+      this.backgroundMaterial.needsUpdate = true;
     } else if (handle instanceof HTMLVideoElement) {
       this.frame.needsUpdate = true;
     }

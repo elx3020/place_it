@@ -8,6 +8,9 @@ export const REFERENCE_SHOULDER_WIDTH_M = 0.38;
 export const NECK_CHIN_TO_SHOULDER = 0.4;
 /** How far the face-mesh ear point is pulled toward the pose ear landmark, when pose is tracked. */
 export const EAR_POSE_WEIGHT = 0.5;
+/** The earlobe sits below and slightly behind the face-edge point, in face widths (outward along the ear line, down perpendicular to it). */
+export const LOBE_OUTWARD = 0.14;
+export const LOBE_DOWN = 0.22;
 
 // Face mesh: 234 / 454 = face edge at the ears (image-left / image-right on an unmirrored frame), 152 = chin.
 // Pose: 7 / 8 = the subject's left / right ear, 11 / 12 = left / right shoulder. 234 is the subject's right side, so it pairs with 8.
@@ -81,15 +84,28 @@ function headRotation(m: number[] | undefined): Quat {
   return [(m02 + m20) / s, (m12 + m21) / s, s / 4, (m10 - m01) / s];
 }
 
+/** Moves a face-edge point to the earlobe: `side` is the point's own landmark, `other` the opposite one. */
+function toLobe(frame: TrackingFrame, p: Vec3, side?: Landmark, other?: Landmark): Vec3 {
+  const a = frame.imageSize.width / frame.imageSize.height;
+  const w = width(frame, side, other);
+  if (!side || !other || !(w > 0)) return p;
+  const u = [((side.x - other.x) * a) / w, (side.y - other.y) / w]; // outward, image-height units
+  const d = [-u[1]!, u[0]!]; // perpendicular...
+  if (d[1]! < 0) { d[0] = -d[0]!; d[1] = -d[1]!; } // ...pointing down the image
+  const k = (i: number) => (u[i]! * LOBE_OUTWARD + d[i]! * LOBE_DOWN) * w;
+  return [p[0] + k(0) / a, p[1] + k(1), p[2]];
+}
+
 const ear: TargetPlacer = ({ mirror, scale = 1 }, frame) => {
   const i = largestFace(frame);
   const face = frame.faces[i];
   const body = poseFor(frame, face);
   const s = (scale * width(frame, face?.[FACE_A], face?.[FACE_B])) / REFERENCE_FACE_WIDTH_M;
-  const sides: [number, number][] = mirror ? [[FACE_A, POSE_EAR_R], [FACE_B, POSE_EAR_L]] : [[FACE_A, POSE_EAR_R]];
-  return sides.map(([f, p]) => {
+  const sides: [number, number, number][] = mirror ? [[FACE_A, FACE_B, POSE_EAR_R], [FACE_B, FACE_A, POSE_EAR_L]] : [[FACE_A, FACE_B, POSE_EAR_R]];
+  return sides.map(([f, o, p]) => {
     const point = face?.[f];
-    return place(toward(point, body?.[p] ?? point, EAR_POSE_WEIGHT), headRotation(frame.faceMatrices[i]), s);
+    const edge = toward(point, body?.[p] ?? point, EAR_POSE_WEIGHT);
+    return place(toLobe(frame, edge, point, face?.[o]), headRotation(frame.faceMatrices[i]), s);
   });
 };
 

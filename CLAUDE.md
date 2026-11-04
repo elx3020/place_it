@@ -36,6 +36,7 @@ General-purpose library that places 3D objects (GLB) on tracked targets from web
 ## Tests
 
 - Unit tests use the fakes in `core/testing`; no real browser needed.
+- Parked work (clips, labels, training data): `docs/parked-tracking-accuracy.md`.
 - Tracking clip test: `packages/tracking/test/clips.browser.test.ts` reads `packages/tracking/fixtures/` (Git LFS). Clip format and `labels.json` are described in `fixtures/README.md`; the test skips until clips and labels exist.
 - Render screenshot baselines: generate WebKit ones via the CI `update-screenshots` dispatch.
 
