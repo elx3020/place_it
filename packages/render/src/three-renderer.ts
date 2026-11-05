@@ -1,14 +1,17 @@
 import { PlaceItError, type FrameInput, type Pose, type RenderObject, type RenderPass, type Renderer, type Vec3 } from "@place-it/core";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import {
-  Box3, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshBasicMaterial, type Object3D,
-  OrthographicCamera, PlaneGeometry, Scene, SRGBColorSpace, Texture, Vector3, VideoTexture, WebGPURenderer,
+  Box3, DoubleSide, Group, Mesh, MeshBasicMaterial, type Object3D,
+  OrthographicCamera, PMREMGenerator, PlaneGeometry, Scene, SRGBColorSpace, Texture, Vector3, VideoTexture, WebGPURenderer,
 } from "three/webgpu";
 import { createOccluder } from "./occluder";
 import { PassPipeline } from "./passes";
 
 /** Models whose bounding-box diagonal (meters) falls outside this range are scaled into it, with a warning. */
 export const MODEL_DIAGONAL_RANGE_M = [0.001, 10] as const;
+/** RoomEnvironment is bright: at 1 a 0.8-albedo metal clips to white. */
+const ENVIRONMENT_INTENSITY = 0.4;
 const DEPTH = 1e5; // orthographic depth range in pixels, far beyond any object
 
 export interface ThreeRendererOptions {
@@ -68,9 +71,7 @@ export class ThreeRenderer implements Renderer {
     for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
     this.background = new Mesh(plane, this.backgroundMaterial);
     this.background.renderOrder = -2;
-    const sun = new DirectionalLight(0xffffff, 2);
-    sun.position.set(1, 1, 2);
-    this.scene.add(new HemisphereLight(0xffffff, 0x404040, 1.5), sun, this.world);
+    this.scene.add(this.world); // no lights: see init() for the environment that lets metalness and roughness show
     this.world.add(this.background, this.occluder);
     this.resize(opts.canvas.width || 1, opts.canvas.height || 1);
   }
@@ -82,6 +83,12 @@ export class ThreeRenderer implements Renderer {
 
   async init(): Promise<void> {
     await this.renderer.init();
+    // Lit only by a neutral studio environment: metalness, roughness, albedo and alpha show, with no directional light and no shadows.
+    // A metal with no environment to reflect renders flat gray.
+    const pmrem = new PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = ENVIRONMENT_INTENSITY;
+    pmrem.dispose();
   }
 
   async loadModel(url: string): Promise<string> {
@@ -165,6 +172,7 @@ export class ThreeRenderer implements Renderer {
     this.disposed = true;
     for (const m of this.models.values()) disposeTree(m.root);
     disposeTree(this.scene);
+    this.scene.environment?.dispose();
     this.renderer.dispose();
   }
 
